@@ -1,23 +1,5 @@
 ## HardCandy-Jekyll
 
-
-
-### Preview
-
-[在线预览 view demo →](http://xseven.me/)
-
-![1](/screenshot/1.png)
-
-![2](/screenshot/2.png)
-
-![3](/screenshot/3.png)
-
-想要查看手机端显示效果，扫描下方二维码浏览器打开即可
-
-![4](/screenshot/4.png)
-
-
-
 ### 主题特性
 
 - 主题基于 `jekyll 3.8.1` 开发
@@ -375,9 +357,3 @@ google-ID: ''
 ### License 许可证
 
 HardCandy-Jekyll is licensed under [MIT](https://github.com/xukimseven/HardCandy-Jekyll/blob/master/LICENSE).
-
-
-
-### 求Star 求关注
-
-看到这里，如果你喜欢我的小项目，欢迎下载使用他，也请你为我点个小星星 😜 ，多谢。

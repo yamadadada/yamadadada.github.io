@@ -1,9 +1,9 @@
 ---
 layout: default
-title: LiuYSµÄ²©¿Í
-page-title: my blog.
-home-title: ¨r(¨s¨Œ¨t)¨q
-description: 
+title: your awesome title
+page-title: your awesome page-title.
+home-title: your awesome home-title.
+description: description
 ---
 
 {% include header.html %}
