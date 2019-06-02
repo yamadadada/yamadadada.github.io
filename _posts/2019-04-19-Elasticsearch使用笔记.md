@@ -165,7 +165,139 @@ POST /five/_delete_by_query
 }
 ```
 
-# 4 同步mysql数据到elasticsearch
+# 4 将mysql数据导入到elasticsearch
+
+## 前提
+
+pom依赖
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-data-elasticsearch</artifactId>
+</dependency>
+```
+
+实体类
+
+```java
+@Data
+@Document(indexName = "book", type = "book")
+public class EsBook {
+
+    @Id
+    private Integer id;
+
+    @Field(analyzer = "ik_max_word", type = FieldType.Text)
+    private String title;
+
+    // ISBN 唯一
+    @Field(analyzer = "ik_max_word", type = FieldType.Text)
+    private String isbn;
+
+    // 出版社
+    private String publisher;
+
+    private String pubdate;
+
+    // 分类号
+    private String classNum;
+
+    // 索书号
+    private String callNumber;
+
+    // 作者，序列化数组
+    @Field(analyzer = "ik_max_word", type = FieldType.Text)
+    private String author;
+
+    // 译者，序列化数组
+    private String translator;
+
+    // 装帧
+    private String binding;
+
+    // 价格
+    private Float price;
+
+    // 页数
+    private Integer page;
+
+    // 字数
+    private Integer word;
+
+    // small封面完整路径
+    private String imgs;
+}
+```
+
+## 例子
+
+mysql原数据大约有16w行，如果使用**ElasticsearchRepository**导入速度太慢，这里使用**elasticsearchTemplate**
+
+```java
+@RunWith(SpringRunner.class)
+@SpringBootTest
+public class BookServiceImplTest {
+    
+    @Autowired
+    private ElasticsearchTemplate elasticsearchTemplate;
+
+    @Resource
+    private BookDao bookDao;
+
+    @Test
+    public void esImport() {
+        // 判断索引是否存在
+        if (!elasticsearchTemplate.indexExists("book")) {
+            elasticsearchTemplate.createIndex("book");
+        }
+
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+        List<Book> bookList = bookDao.getAll();
+        List<IndexQuery> queryList = new ArrayList<>();
+
+        int count = 0;
+        try {
+            for (Book book: bookList) {
+                EsBook esBook = new EsBook();
+                BeanUtils.copyProperties(book, esBook);
+                if (book.getPubdate() != null) {
+                    esBook.setPubdate(sdf.format(book.getPubdate()));
+                }
+
+                IndexQuery indexQuery = new IndexQuery();
+                indexQuery.setId(book.getId().toString());
+                indexQuery.setObject(esBook);
+                indexQuery.setIndexName("book");
+                indexQuery.setType("book");
+                queryList.add(indexQuery);
+
+                // 分批提交索引
+                if (count % 500 == 0) {
+                    elasticsearchTemplate.bulkIndex(queryList);
+                    queryList.clear();
+                    System.out.println("bulkIndex counter : " + count);
+                }
+                count++;
+            }
+            //不足批的索引最后不要忘记提交
+            if (queryList.size() > 0) {
+                elasticsearchTemplate.bulkIndex(queryList);
+            }
+            elasticsearchTemplate.refresh("book");
+            System.out.println("bulkIndex completed");
+        } catch (Exception e) {
+            System.out.println("【发生错误】");
+            System.out.println(e.getMessage());
+            throw e;
+        }
+    }
+}
+```
+
+最终耗时：48 s 278 ms
+
+# 5 同步mysql数据到elasticsearch
 
 参考资料： [Mysql数据同步Elasticsearch方案总结](https://my.oschina.net/u/4000872/blog/2252620)
 
@@ -319,12 +451,13 @@ logstash默认会把别名的大写转为大写，所以把lowercase_column_name
 ```
 cd logstash-6.4.2
 # 检查配置文件语法是否正确
-bin/logstash -f config/jdbc.conf --config.test_and_exit
+cd bin
+logstash -f ../config/jdbc.conf --config.test_and_exit
 # 启动
-bin/logstash -f config/jdbc.conf --config.reload.automatic
+logstash -f ../config/jdbc.conf --config.reload.automatic
 ```
 
-# 5 es中文分词工具elasticsearch-analysis-ik
+# 6 es中文分词工具elasticsearch-analysis-ik
 
 [github主页](https://github.com/medcl/elasticsearch-analysis-ik)
 
@@ -338,7 +471,7 @@ bin/logstash -f config/jdbc.conf --config.reload.automatic
 elasticsearch-plugin install https://github.com/medcl/elasticsearch-analysis-ik/releases/download/v6.2.2/elasticsearch-analysis-ik-6.2.2.zip
 ```
 
-# 6 Java代码例子
+# 7 Java代码例子
 
 ### 实体类
 
@@ -409,6 +542,35 @@ public class SearchController {
         List<EsItem> itemList = searchService.findItemByItemName(name);
         return ResultVOUtil.success(itemList);
     }
+}
+```
+
+## 使用分页与排序
+
+Repository：
+
+```java
+public interface EsBookDao extends ElasticsearchRepository<EsBook, Integer> {
+
+    Page<EsBook> findByTitle(String title, Pageable pageable);
+}
+```
+
+使用分页与排序时统一放在Pageable这个参数中  
+
+测试例子：
+
+```java
+Sort.Order order1 = Sort.Order.desc("_score");
+Sort.Order order2 = Sort.Order.desc("id");
+List<Sort.Order> orderList = new ArrayList<>();
+orderList.add(order1);
+orderList.add(order2);
+Sort sort = Sort.by(orderList);
+PageRequest pageRequest = PageRequest.of(0, 20, sort);
+Page<EsBook> esBookPage = esBookDao.findByTitle("马克思", pageRequest);
+for (EsBook esBook: esBookPage.getContent()) {
+	System.out.println(esBook.getTitle());
 }
 ```
 
